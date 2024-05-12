@@ -8,8 +8,6 @@ import deepl
 import constants
 
 #nltk.download('brown')
-deepl_auth_key = ""
-
 
 class WordLocation:
     def __init__(self, lineNum, lineTime, subLines):
@@ -93,9 +91,9 @@ def sortWords(wordsDict: dict, freqs: dict):
     return wordlist_sorted
 
 
-def translate(wordsDict: dict):
+def translate(deepl_auth_key, wordsDict: dict):
     if not deepl_auth_key:
-        return dict()
+        return None
     translator = deepl.Translator(deepl_auth_key)
     result = translator.translate_text(wordsDict.keys(), target_lang="RU")
     return result
@@ -112,7 +110,7 @@ def saveSorted(wordlist_sorted: dict, translatedWords, path):
             first = v[0]
             lines = " ".join(first.lines).replace("\n", "")
             time = first.time.replace("\n", "")[:8]
-            translated = translatedWords[index].text if deepl_auth_key else 'None'
+            translated = translatedWords[index].text if translatedWords else 'None'
             index += 1
 
             result = f'{k:15} Translation: {translated:30} Example: {lines:80} Time: {time:18} Count: {usages}\n'
@@ -120,20 +118,24 @@ def saveSorted(wordlist_sorted: dict, translatedWords, path):
             print (result, file=file_object)
 
 
+def main(path, deepl_auth_key):
+    #constants.deepl_auth_key
+    wordsDict = ExtractWords(path)
+    filteredDict = {k: v for k, v in wordsDict.items() if FilterWord(k)}
+    freqs =  nltk.FreqDist([w.lower() for w in brown.words()]) #read_csv_to_dict(constants.freqs_file)
+    sortedWords = sortWords(filteredDict, freqs)
+    limitedWords = dict(list(sortedWords.items())[:constants.default_output_count])
+    translatedWords = translate(deepl_auth_key, limitedWords)
+    # sortedWords = dict(reversed(list(sortedWords.items())))
+
+    oldPath, filename = os.path.split(path)
+    filename = os.path.splitext(filename)[0]
+    newfilename = '%s_top_%s.txt' % (filename, constants.default_output_count)
+    newpath = os.path.join(oldPath, newfilename)
+
+    saveSorted(limitedWords, translatedWords, newpath)
+
 
 path = sys.argv[1]
-deepl_auth_key =  sys.argv[2] if len(sys.argv) > 2 else "" #constants.deepl_auth_key
-wordsDict = ExtractWords(path)
-filteredDict = {k: v for k, v in wordsDict.items() if FilterWord(k)}
-freqs =  nltk.FreqDist([w.lower() for w in brown.words()]) #read_csv_to_dict(constants.freqs_file)
-sortedWords = sortWords(filteredDict, freqs)
-limitedWords = dict(list(sortedWords.items())[:constants.default_output_count])
-translatedWords = translate(limitedWords)
-# sortedWords = dict(reversed(list(sortedWords.items())))
-
-oldPath, filename = os.path.split(path)
-filename = os.path.splitext(filename)[0]
-newfilename = '%s_top_%s.txt' % (filename, constants.default_output_count)
-newpath = os.path.join(oldPath, newfilename)
-
-saveSorted(limitedWords, translatedWords, newpath)
+auth_key = sys.argv[2] if len(sys.argv) > 2 else "" 
+main(path, auth_key)
